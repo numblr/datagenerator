@@ -1,13 +1,15 @@
+import logging
 import copy
+import numpy as np
 from sklearn.model_selection import train_test_split
+
+logger = logging.getLogger()
 
 class GeneratorDataSet:
     def __init__(self, inventory,
-            data_loader=None,
             data_encoder=None,
             target_encoder=None):
         self._inventory = inventory
-        self._data_loader = data_loader
         self._data_encoder = data_encoder
         self._target_encoder = target_encoder
 
@@ -36,7 +38,46 @@ class GeneratorDataSet:
                 self._clone_with_inventory(validation_set), \
                 self._clone_with_inventory(test_set)
 
+    def batches(self, batch_size=10, epochs=None, truncate=True):
+        return ( (self._get_batch_data(batch), self._get_batch_targets(batch))
+                for batch in self.__inventory_batches(batch_size, epochs, truncate) )
+
+    def data_batches(self, batch_size=10, epochs=None, truncate=True):
+        return ( self._get_batch_data(batch)
+                for batch in self.__inventory_batches(batch_size, epochs, truncate) )
+
+    def _get_batch_data(self, batch):
+        """Override to customize batch data loading and featurization."""
+        return np.array([ self._get_data(record) for record in batch ])
+
+    def _get_data(self, record):
+        """Override to customize data loading and featurization."""
+        return self._data_encoder(record)
+
+    def target_batches(self, batch_size=10, epochs=None, truncate=True):
+        """Override to customize batch target creation."""
+        return ( self._get_batch_targets(batch)
+                for batch in self.__inventory_batches(batch_size, epochs, truncate) )
+
+    def _get_batch_targets(self, batch):
+        """Override to customize target creation."""
+        return np.array([ self._get_target(record) for record in batch ])
+
+    def _get_target(self, record):
+        return self._target_encoder(record)
+
+    def __inventory_batches(self, batch_size, epochs, truncate):
+        epoch = 0
+        while epochs is None or epoch < epochs:
+            epoch += 1
+            yield from ( self._inventory[i:i + batch_size]
+                for i in range(0, self.size(), batch_size)
+                if i + batch_size <= self.size() or not truncate )
+
+        logger.info("Fetched " + str(epochs) + "batches")
+
     def _clone_with_inventory(self, inventory):
+        """Override to control the creation of new instances with modified inventory"""
         if len(inventory) == 0:
             return EMPTY_GEN
 
@@ -44,5 +85,9 @@ class GeneratorDataSet:
         clone._inventory = inventory
 
         return clone
+
+    def __copy__(self):
+        """Override to control cloning of the instance"""
+        return GeneratorDataSet(self._inventory, self._data_encoder, self._target_encoder)
 
 EMPTY_GEN = GeneratorDataSet(())
