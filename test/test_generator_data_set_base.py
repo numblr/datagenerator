@@ -59,3 +59,20 @@ class TestGeneratorDataSet(unittest.TestCase):
         self.assertEqual(self.data_loader(record), 0)
         self.assertEqual(self.target_encoder(record), 0)
         self.assertEqual(self.data_encoder(0), (1, 0, 0))
+
+    def test_size(self):
+        self.assertEqual(self.data_set.size(), 10)
+
+    @unittest.skip
+    def test_shape(self):
+        pass
+
+    def test_split(self):
+        training, validation, test = self.data_set \
+                .split(validation = 0.2, test = 0.3)
+
+        self.assertEqual(training.size() + validation.size() + test.size(), self.data_set.size())
+
+        self.assertEqual(training.size(), 5)
+        self.assertEqual(validation.size(), 2)
+        self.assertEqual(test.size(), 3)
