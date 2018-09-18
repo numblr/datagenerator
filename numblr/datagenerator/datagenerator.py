@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger()
 
+
 class GeneratorDataSet:
     def __init__(self, inventory,
             data_encoder=None,
@@ -17,6 +18,7 @@ class GeneratorDataSet:
     def inventory(self):
         return self._inventory
 
+    @property
     def size(self):
         return len(self.inventory)
 
@@ -26,10 +28,10 @@ class GeneratorDataSet:
         if test < 0.0 or 1.0 < test:
             raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation_ratio))
         if test + validation > 1.0:
-            raise ValueError("test and validation size exceed 1.0: " + str(test_ratio + validation_ratio))
+            raise ValueError("validation plus test size exceed 1.0: " + str(test_ratio + validation_ratio))
 
-        test_size = int(round(self.size() * test))
-        validation_size = int(round(self.size() * validation))
+        test_size = int(round(self.size * test))
+        validation_size = int(round(self.size * validation))
 
         learning_set, test_set = train_test_split(self.inventory, test_size=test_size)
         training_set, validation_set = train_test_split(learning_set, test_size=validation_size)
@@ -48,11 +50,19 @@ class GeneratorDataSet:
 
     def _get_batch_data(self, batch):
         """Override to customize batch data loading and featurization."""
-        return np.array([ self._get_data(record) for record in batch ])
+        try:
+            encoders = ( encoder for encoder in self._data_encoder )
+        except:
+            encoders = (self._data_encoder,)
 
-    def _get_data(self, record):
+        data_batches = [ np.array([ self._get_data(record, encoder) for record in batch ])
+                for encoder in encoders ]
+
+        return data_batches if len(data_batches) > 1 else data_batches[0]
+
+    def _get_data(self, record, encoder):
         """Override to customize data loading and featurization."""
-        return self._data_encoder(record)
+        return encoder(record)
 
     def target_batches(self, batch_size=10, epochs=None, truncate=True):
         """Override to customize batch target creation."""
@@ -71,8 +81,8 @@ class GeneratorDataSet:
         while epochs is None or epoch < epochs:
             epoch += 1
             yield from ( self._inventory[i:i + batch_size]
-                for i in range(0, self.size(), batch_size)
-                if i + batch_size <= self.size() or not truncate )
+                for i in range(0, self.size, batch_size)
+                if i + batch_size <= self.size or not truncate )
 
         logger.info("Fetched " + str(epochs) + "batches")
 
@@ -89,5 +99,6 @@ class GeneratorDataSet:
     def __copy__(self):
         """Override to control cloning of the instance"""
         return GeneratorDataSet(self._inventory, self._data_encoder, self._target_encoder)
+
 
 EMPTY_GEN = GeneratorDataSet(())
