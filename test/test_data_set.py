@@ -1,7 +1,7 @@
 import unittest
 from pprint import pprint
 
-from numblr.datagenerator.datagenerator import GeneratorDataSet
+from numblr.datagenerator.dataset import GeneratorDataSet
 
 
 class TestGeneratorDataSet(unittest.TestCase):
