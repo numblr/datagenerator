@@ -1,4 +1,5 @@
 import unittest
+import numpy as np
 
 from pandas import DataFrame
 
@@ -170,3 +171,40 @@ class TestGeneratorDataSet(unittest.TestCase):
             self.assertSequenceEqual(list(batch[2][0]), [3, 0])
             self.assertSequenceEqual(list(batch[2][1]), [3, 1])
             self.assertSequenceEqual(list(batch[2][2]), [3, 2])
+
+    def test_sort(self):
+        self.data_set.sort(columns='target')
+
+        self.assertEqual(len(self.data_set.inventory), 10)
+        self.assertEqual(self.data_set.inventory.iloc[0]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[1]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[2]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[3]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[4]['target'], 'cat_1')
+        self.assertEqual(self.data_set.inventory.iloc[5]['target'], 'cat_1')
+        self.assertEqual(self.data_set.inventory.iloc[6]['target'], 'cat_1')
+        self.assertEqual(self.data_set.inventory.iloc[7]['target'], 'cat_2')
+        self.assertEqual(self.data_set.inventory.iloc[8]['target'], 'cat_2')
+        self.assertEqual(self.data_set.inventory.iloc[9]['target'], 'cat_2')
+
+        self.assertSequenceEqual(sorted(self.data_set.inventory.iloc[0:4]['id']),
+                ['id_0', 'id_3', 'id_6', 'id_9'])
+        self.assertSequenceEqual(sorted(self.data_set.inventory.iloc[4:7]['id']),
+                ['id_1', 'id_4', 'id_7'])
+        self.assertSequenceEqual(sorted(self.data_set.inventory.iloc[7:]['id']),
+                ['id_2', 'id_5', 'id_8'])
+
+    def test_shuffle(self):
+        self.setUp(size=25, targets=25)
+
+        before = np.array(self.data_set.inventory['id'])
+
+        self.data_set.shuffle()
+
+        after = np.array(self.data_set.inventory['id'])
+
+        self.assertTrue(np.any(np.not_equal(before, after)))
+        for _, record in self.data_set.inventory.iterrows():
+            id_postfix = int(record['id'].split('_')[-1])
+            target_postfix = int(record['target'].split('_')[-1])
+            self.assertEqual(id_postfix, target_postfix)

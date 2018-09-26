@@ -42,6 +42,14 @@ class GeneratorDataSet:
         self.target_encoder.fit(self.inventory)
         self.data_encoder.normalize(self.inventory)
 
+    def sort(self, columns=['size'], ascending=True, na_position='last'):
+        self._inventory.sort_values(by=columns, ascending=ascending, na_position=na_position, inplace=True)
+
+    def shuffle(self, random_state=None):
+        self._inventory = self._inventory \
+                .sample(frac=1, random_state=random_state) \
+                .reset_index(drop=True)
+
     def split(self, validation=0.2, test=0.0):
         if validation < 0.0 or 1.0 < validation:
             raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation_ratio))
