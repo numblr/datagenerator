@@ -1,15 +1,23 @@
 import logging
 import copy
+
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
+
 
 logger = logging.getLogger()
 
 
 class GeneratorDataSet:
-    def __init__(self, inventory,
-            data_encoder=None,
-            target_encoder=None):
+    def __init__(self, inventory, data_encoder=None, target_encoder=None):
+        if not isinstance(inventory, pd.DataFrame):
+            raise ValueError("inventory must be a pandas.DataFrame")
+        if not callable(data_encoder) and not all(callable(e) for e in data_encoder):
+            raise ValueError("data_encoder must be callable")
+        if not callable(target_encoder):
+            raise ValueError("target_encoder must be callable")
+
         self._inventory = inventory
         self._data_encoder = data_encoder
         self._target_encoder = target_encoder
@@ -21,6 +29,18 @@ class GeneratorDataSet:
     @property
     def size(self):
         return len(self.inventory)
+
+    @property
+    def data_encoder(self):
+        return self._data_encoder
+
+    @property
+    def target_encoder(self):
+        return self._target_encoder
+
+    def init(self):
+        self.target_encoder.fit(self.inventory)
+        self.data_encoder.normalize(self.inventory)
 
     def split(self, validation=0.2, test=0.0):
         if validation < 0.0 or 1.0 < validation:
@@ -55,7 +75,8 @@ class GeneratorDataSet:
         except:
             encoders = (self._data_encoder,)
 
-        data_batches = [ np.array([ self._get_data(record, encoder) for record in batch ])
+        data_batches = [
+                np.array([ self._get_data(record, encoder) for _, record in batch.iterrows() ])
                 for encoder in encoders ]
 
         return data_batches if len(data_batches) > 1 else data_batches[0]
@@ -71,16 +92,13 @@ class GeneratorDataSet:
 
     def _get_batch_targets(self, batch):
         """Override to customize target creation."""
-        return np.array([ self._get_target(record) for record in batch ])
-
-    def _get_target(self, record):
-        return self._target_encoder(record)
+        return np.array(self._target_encoder(batch))
 
     def __inventory_batches(self, batch_size, epochs, truncate):
         epoch = 0
         while epochs is None or epoch < epochs:
             epoch += 1
-            yield from ( self._inventory[i:i + batch_size]
+            yield from ( self._inventory.iloc[i:i + batch_size]
                 for i in range(0, self.size, batch_size)
                 if i + batch_size <= self.size or not truncate )
 
@@ -88,9 +106,6 @@ class GeneratorDataSet:
 
     def _clone_with_inventory(self, inventory):
         """Override to control the creation of new instances with modified inventory"""
-        if len(inventory) == 0:
-            return EMPTY_GEN
-
         clone = copy.copy(self)
         clone._inventory = inventory
 
@@ -99,6 +114,3 @@ class GeneratorDataSet:
     def __copy__(self):
         """Override to control cloning of the instance"""
         return GeneratorDataSet(self._inventory, self._data_encoder, self._target_encoder)
-
-
-EMPTY_GEN = GeneratorDataSet(())

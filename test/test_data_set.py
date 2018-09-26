@@ -1,29 +1,29 @@
 import unittest
 from pprint import pprint
 
+from pandas import DataFrame
+
 from numblr.datagenerator.dataset import GeneratorDataSet
 
 
 class TestGeneratorDataSet(unittest.TestCase):
     def setUp(self, size=10, targets=3):
-        inventory = [ { 'id': 'id_{}'.format(i), 'target': 'cat_{}'.format(i % targets) }
-                for i in range(size) ]
-
-        def data_loader(record):
-            return int(record['id'].split('_')[-1]) % targets
+        inventory = DataFrame.from_records([
+                { 'id': 'id_{}'.format(i), 'target': 'cat_{}'.format(i % targets) }
+                for i in range(size) ])
 
         def data_encoder(record):
-            data = data_loader(record)
+            """Encode to vectors of length #targets"""
+            postition = int(record['id'].split('_')[-1]) % targets
 
             encoded = [0] * targets
-            encoded[data] = 1
+            encoded[postition] = 1
 
             return tuple(encoded)
 
-        def target_encoder(record):
-            return int(record['target'].split('_')[-1])
+        def target_encoder(records):
+            return [ int(record['target'].split('_')[-1]) for _, record in records.iterrows() ]
 
-        self.data_loader = data_loader
         self.data_encoder = data_encoder
         self.target_encoder = target_encoder
         self.data_set = GeneratorDataSet(inventory,
@@ -32,33 +32,28 @@ class TestGeneratorDataSet(unittest.TestCase):
 
     def test_inventory(self):
         self.assertEqual(len(self.data_set.inventory), 10)
-        self.assertEqual(self.data_set.inventory[0]['id'], 'id_0')
-        self.assertEqual(self.data_set.inventory[0]['target'], 'cat_0')
-        self.assertEqual(self.data_set.inventory[1]['target'], 'cat_1')
-        self.assertEqual(self.data_set.inventory[2]['target'], 'cat_2')
-        self.assertEqual(self.data_set.inventory[3]['target'], 'cat_0')
-        self.assertEqual(self.data_set.inventory[9]['id'], 'id_9')
-        self.assertEqual(self.data_set.inventory[9]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[0]['id'], 'id_0')
+        self.assertEqual(self.data_set.inventory.iloc[0]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[1]['target'], 'cat_1')
+        self.assertEqual(self.data_set.inventory.iloc[2]['target'], 'cat_2')
+        self.assertEqual(self.data_set.inventory.iloc[3]['target'], 'cat_0')
+        self.assertEqual(self.data_set.inventory.iloc[9]['id'], 'id_9')
+        self.assertEqual(self.data_set.inventory.iloc[9]['target'], 'cat_0')
 
-        record = self.data_set.inventory[0]
-        self.assertEqual(self.data_loader(record), 0)
-        self.assertEqual(self.target_encoder(record), 0)
+        record = self.data_set.inventory.iloc[0]
         self.assertEqual(self.data_encoder(record), (1, 0, 0))
 
-        record = self.data_set.inventory[1]
-        self.assertEqual(self.data_loader(record), 1)
-        self.assertEqual(self.target_encoder(record), 1)
+        record = self.data_set.inventory.iloc[1]
         self.assertEqual(self.data_encoder(record), (0, 1, 0))
 
-        record = self.data_set.inventory[2]
-        self.assertEqual(self.data_loader(record), 2)
-        self.assertEqual(self.target_encoder(record), 2)
+        record = self.data_set.inventory.iloc[2]
         self.assertEqual(self.data_encoder(record), (0, 0, 1))
 
-        record = self.data_set.inventory[3]
-        self.assertEqual(self.data_loader(record), 0)
-        self.assertEqual(self.target_encoder(record), 0)
+        record = self.data_set.inventory.iloc[3]
         self.assertEqual(self.data_encoder(record), (1, 0, 0))
+
+        self.assertSequenceEqual(self.target_encoder(self.data_set.inventory),
+                [0, 1, 2, 0, 1, 2, 0, 1, 2, 0])
 
     def test_size(self):
         self.assertEqual(self.data_set.size, 10)
@@ -143,8 +138,8 @@ class TestGeneratorDataSet(unittest.TestCase):
         self.assertEqual(shapes.pop(), (2, 3))
 
     def test_batch_data_multiple_encoders(self):
-        inventory = [ { 'id': 'id_{}'.format(i), 'target': 'cat_{}'.format(i % 3) }
-                for i in range(10) ]
+        inventory = DataFrame.from_records([ { 'id': 'id_{}'.format(i), 'target': 'cat_{}'.format(i % 3) }
+                for i in range(10) ])
 
         data_encoder = [
             lambda record: (1,) + (int(record['target'][-1]),),
@@ -152,8 +147,8 @@ class TestGeneratorDataSet(unittest.TestCase):
             lambda record: (3,) + (int(record['target'][-1]),)
         ]
 
-        def target_encoder(record):
-            return int(record['target'].split('_')[-1])
+        def target_encoder(records):
+            return [ int(record['target'].split('_')[-1]) for _, record in records.iterrows() ]
 
         data_set = GeneratorDataSet(inventory,
                 data_encoder,
