@@ -1,7 +1,6 @@
 import unittest
 
-from numblr.datagenerator.encoders import LabelEncoder, IntToOneHotEncoder
-from numblr.datagenerator.factories import generator_for_files
+from numblr.datagenerator import generator_for_files, LabelEncoder, IntToOneHotEncoder
 
 
 class TestGeneratorDataSet(unittest.TestCase):

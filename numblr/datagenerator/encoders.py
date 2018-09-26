@@ -172,7 +172,7 @@ class IntToOneHotEncoder:
 
 
 class RecordTargetEncoder:
-    def __init__(self, encoders, target='target'):
+    def __init__(self, encoders=None, target='target'):
         if not isinstance(target, str):
             raise ValueError("target must be a string: " + str(type(target)))
 
@@ -180,7 +180,7 @@ class RecordTargetEncoder:
             any(encoders)
             self._delegates = encoders
         except TypeError:
-            self._delegates = (encoders, )
+            self._delegates = (encoders, ) if encoders is not None else IdentityEncoder()
 
         self._target = target
 
