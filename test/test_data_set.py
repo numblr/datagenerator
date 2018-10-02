@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+from numpy.testing import assert_array_equal
 
 from pandas import DataFrame
 
@@ -71,6 +72,29 @@ class TestGeneratorDataSet(unittest.TestCase):
         self.assertEqual(training.size, 5)
         self.assertEqual(validation.size, 2)
         self.assertEqual(test.size, 3)
+
+    def test_data(self):
+        data = self.data_set.data()
+
+        self.assertEqual(data.shape, (10, 3))
+        expected = np.array([
+            [1 ,0, 0],
+            [0 ,1, 0],
+            [0 ,0, 1],
+            [1 ,0, 0],
+            [0 ,1, 0],
+            [0 ,0, 1],
+            [1 ,0, 0],
+            [0 ,1, 0],
+            [0 ,0, 1],
+            [1 ,0, 0]])
+        assert_array_equal(data, expected)
+
+    def test_targets(self):
+        targets = self.data_set.targets()
+
+        self.assertEqual(targets.shape, (10,))
+        self.assertSequenceEqual(list(targets), [0, 1, 2, 0, 1, 2, 0, 1, 2, 0])
 
     def test_data_batches(self):
         generator = self.data_set.data_batches(batch_size=4, epochs=1)
@@ -208,3 +232,13 @@ class TestGeneratorDataSet(unittest.TestCase):
             id_postfix = int(record['id'].split('_')[-1])
             target_postfix = int(record['target'].split('_')[-1])
             self.assertEqual(id_postfix, target_postfix)
+
+    def test_batches_raises_if_batch_size_too_large(self):
+        with self.assertRaises(ValueError):
+            self.data_set.batches(batch_size=100)
+
+        with self.assertRaises(ValueError):
+            self.data_set.data_batches(batch_size=100)
+
+        with self.assertRaises(ValueError):
+            self.data_set.target_batches(batch_size=100)

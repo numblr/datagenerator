@@ -52,11 +52,11 @@ class GeneratorDataSet:
 
     def split(self, validation=0.2, test=0.0):
         if validation < 0.0 or 1.0 < validation:
-            raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation_ratio))
+            raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation))
         if test < 0.0 or 1.0 < test:
-            raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation_ratio))
+            raise ValueError("validation ratio must be between 0.0 and 1.0: " + str(validation))
         if test + validation > 1.0:
-            raise ValueError("validation plus test size exceed 1.0: " + str(test_ratio + validation_ratio))
+            raise ValueError("validation plus test size exceed 1.0: " + str(test_ratio + validation))
 
         test_size = int(round(self.size * test))
         validation_size = int(round(self.size * validation))
@@ -68,11 +68,23 @@ class GeneratorDataSet:
                 self._clone_with_inventory(validation_set), \
                 self._clone_with_inventory(test_set)
 
+    def data(self):
+        data = next(self.data_batches(batch_size=self.size, epochs=1))
+        return np.array([x for x in data], copy=False)
+
+    def targets(self):
+        targets = next(self.target_batches(batch_size=self.size, epochs=1))
+        return np.array([x for x in targets], copy=False)
+
     def batches(self, batch_size=10, epochs=None, truncate=True):
+        self.__validate_batch_size(batch_size, truncate)
+
         return ( (self._get_batch_data(batch), self._get_batch_targets(batch))
                 for batch in self.__inventory_batches(batch_size, epochs, truncate) )
 
     def data_batches(self, batch_size=10, epochs=None, truncate=True):
+        self.__validate_batch_size(batch_size, truncate)
+
         return ( self._get_batch_data(batch)
                 for batch in self.__inventory_batches(batch_size, epochs, truncate) )
 
@@ -95,6 +107,8 @@ class GeneratorDataSet:
 
     def target_batches(self, batch_size=10, epochs=None, truncate=True):
         """Override to customize batch target creation."""
+        self.__validate_batch_size(batch_size, truncate)
+
         return ( self._get_batch_targets(batch)
                 for batch in self.__inventory_batches(batch_size, epochs, truncate) )
 
@@ -103,6 +117,9 @@ class GeneratorDataSet:
         return np.array(self._target_encoder(batch))
 
     def __inventory_batches(self, batch_size, epochs, truncate):
+        if batch_size < 1:
+            batch_size = self.size
+
         epoch = 0
         while epochs is None or epoch < epochs:
             epoch += 1
@@ -111,6 +128,12 @@ class GeneratorDataSet:
                 if i + batch_size <= self.size or not truncate )
 
         logger.info("Fetched " + str(epochs) + "batches")
+
+    def __validate_batch_size(self, batch_size, truncate):
+        if truncate and batch_size > self.size:
+            raise ValueError("batch_size larger than data set size: "
+                    + str(batch_size) + " > " + str(self.size)
+                    + ", use a valid batch_size or the 'truncate=False' option")
 
     def _clone_with_inventory(self, inventory):
         """Override to control the creation of new instances with modified inventory"""
