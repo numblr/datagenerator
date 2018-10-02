@@ -6,7 +6,12 @@ This project is still work in progress.
 
 ## Usage
 
-For basic usage see the integration test in */test/test_integration.py*
+For basic usage see the integration test in */test/test_integration.py* and the
+example in the #/examples* directory. The later can be executed with
+
+    > PYTHONPATH=".." python mnist_with_generator.py
+
+from within the */examples* directory.
 
 ## References
 
