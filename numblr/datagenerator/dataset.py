@@ -13,10 +13,6 @@ class GeneratorDataSet:
     def __init__(self, inventory, data_encoder=None, target_encoder=None):
         if not isinstance(inventory, pd.DataFrame):
             raise ValueError("inventory must be a pandas.DataFrame")
-        if not callable(data_encoder) and not all(callable(e) for e in data_encoder):
-            raise ValueError("data_encoder must be callable")
-        if not callable(target_encoder):
-            raise ValueError("target_encoder must be callable")
 
         self._inventory = inventory
         self._data_encoder = data_encoder
@@ -38,9 +34,12 @@ class GeneratorDataSet:
     def target_encoder(self):
         return self._target_encoder
 
-    def init(self):
+    def fit_encoders(self):
         self.target_encoder.fit(self.inventory)
-        self.data_encoder.normalize(self.inventory)
+        try:
+            [ encoder.fit(self.inventory) for encoder in self.data_encoder ]
+        except TypeError:
+            self.data_encoder.fit(self.inventory)
 
     def sort(self, columns=['size'], ascending=True, na_position='last'):
         self._inventory.sort_values(by=columns, ascending=ascending, na_position=na_position, inplace=True)
@@ -70,10 +69,12 @@ class GeneratorDataSet:
 
     def data(self):
         data = next(self.data_batches(batch_size=self.size, epochs=1))
+
         return np.array([x for x in data], copy=False)
 
     def targets(self):
         targets = next(self.target_batches(batch_size=self.size, epochs=1))
+
         return np.array([x for x in targets], copy=False)
 
     def batches(self, batch_size=10, epochs=None, truncate=True):
@@ -91,19 +92,32 @@ class GeneratorDataSet:
     def _get_batch_data(self, batch):
         """Override to customize batch data loading and featurization."""
         try:
-            encoders = ( encoder for encoder in self._data_encoder )
+            encoders = [ encoder for encoder in self._data_encoder ]
         except:
             encoders = (self._data_encoder,)
 
-        data_batches = [
-                np.array([ self._get_data(record, encoder) for _, record in batch.iterrows() ])
-                for encoder in encoders ]
+        try:
+            data_batches = [ encoder.transform_batch(rec for _, rec in batch.iterrows())
+                    for encoder in encoders ]
+        except AttributeError:
+            data_batches = [
+                    [ self._get_data(record, encoder) for _, record in batch.iterrows() ]
+                    for encoder in encoders ]
 
-        return data_batches if len(data_batches) > 1 else data_batches[0]
+        try:
+            batches = [ np.array(encoder.finalize_batch(batch))
+                    for encoder, batch in zip(encoders, data_batches)]
+        except AttributeError:
+            batches = [ np.array(batch) for batch in data_batches ]
+
+        return batches if len(batches) > 1 else batches[0]
 
     def _get_data(self, record, encoder):
         """Override to customize data loading and featurization."""
-        return encoder(record)
+        try:
+            return encoder.transform(record)
+        except AttributeError:
+            return encoder(record)
 
     def target_batches(self, batch_size=10, epochs=None, truncate=True):
         """Override to customize batch target creation."""
@@ -114,7 +128,10 @@ class GeneratorDataSet:
 
     def _get_batch_targets(self, batch):
         """Override to customize target creation."""
-        return np.array(self._target_encoder(batch))
+        try:
+            return np.array(self._target_encoder.transform(batch))
+        except AttributeError:
+            return np.array(self._target_encoder(batch))
 
     def __inventory_batches(self, batch_size, epochs, truncate):
         if batch_size < 1:
@@ -124,8 +141,8 @@ class GeneratorDataSet:
         while epochs is None or epoch < epochs:
             epoch += 1
             yield from ( self._inventory.iloc[i:i + batch_size]
-                for i in range(0, self.size, batch_size)
-                if i + batch_size <= self.size or not truncate )
+                    for i in range(0, self.size, batch_size)
+                    if i + batch_size <= self.size or not truncate )
 
         logger.info("Fetched " + str(epochs) + "batches")
 

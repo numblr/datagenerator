@@ -26,10 +26,10 @@ class TestFileDataEncoder(unittest.TestCase):
         self.assertEqual(self.encoder.get_path(self.records.iloc[1]), 'test/resources/id2.txt')
         self.assertEqual(self.encoder.get_path(self.records.iloc[2]), 'test/resources/id3.txt')
 
-    def test_encode(self):
-        self.assertEqual(self.encoder.encode(self.records.iloc[0]), 1)
-        self.assertEqual(self.encoder.encode(self.records.iloc[1]), 2)
-        self.assertEqual(self.encoder.encode(self.records.iloc[2]), 3)
+    def test_transform(self):
+        self.assertEqual(self.encoder.transform(self.records.iloc[0]), 1)
+        self.assertEqual(self.encoder.transform(self.records.iloc[1]), 2)
+        self.assertEqual(self.encoder.transform(self.records.iloc[2]), 3)
 
     def test_callable(self):
         self.assertEqual(self.encoder(self.records.iloc[0]), 1)

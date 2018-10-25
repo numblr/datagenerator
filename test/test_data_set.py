@@ -25,6 +25,7 @@ class TestGeneratorDataSet(unittest.TestCase):
         def target_encoder(records):
             return [ int(record['target'].split('_')[-1]) for _, record in records.iterrows() ]
 
+        self.inventory = inventory
         self.data_encoder = data_encoder
         self.target_encoder = target_encoder
         self.data_set = GeneratorDataSet(inventory,
@@ -99,15 +100,130 @@ class TestGeneratorDataSet(unittest.TestCase):
     def test_data_batches(self):
         generator = self.data_set.data_batches(batch_size=4, epochs=1)
 
-        first_batch = next(generator)
-        self.assertEqual(first_batch.shape, (4, 3))
+        batches = [ batch for batch in generator ]
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(batches[0].shape, (4, 3))
+        self.assertEqual(batches[1].shape, (4, 3))
+
+        self.assertSequenceEqual(list(batches[0][0]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[0][1]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[0][2]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[0][3]), [1, 0, 0])
+
+        self.assertSequenceEqual(list(batches[1][0]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[1][1]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[1][2]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[1][3]), [0, 1, 0])
+
+    def test_data_batches_encoder_class(self):
+        data_encoder = self.data_encoder
+
+        class RecordDataEncoder:
+            def transform(self, record):
+                return data_encoder(record)
+
+        data_set = GeneratorDataSet(self.inventory,
+                RecordDataEncoder(),
+                self.target_encoder)
+        generator = data_set.data_batches(batch_size=4, epochs=1)
 
         batches = [ batch for batch in generator ]
-        self.assertEqual(len(batches), 1)
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(batches[0].shape, (4, 3))
+        self.assertEqual(batches[1].shape, (4, 3))
 
-        shapes = { batch.shape for batch in batches }
-        self.assertEqual(len(shapes), 1)
-        self.assertEqual(shapes.pop(), (4, 3))
+        self.assertSequenceEqual(list(batches[0][0]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[0][1]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[0][2]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[0][3]), [1, 0, 0])
+
+        self.assertSequenceEqual(list(batches[1][0]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[1][1]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[1][2]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[1][3]), [0, 1, 0])
+
+    def test_data_batches_batch_encoder(self):
+        data_encoder = self.data_encoder
+
+        class BatchDataEncoder:
+            def transform_batch(self, records):
+                return [ data_encoder(record) for record in records ]
+
+        data_set = GeneratorDataSet(self.inventory,
+                BatchDataEncoder(),
+                self.target_encoder)
+        generator = data_set.data_batches(batch_size=4, epochs=1)
+
+        batches = [ batch for batch in generator ]
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(batches[0].shape, (4, 3))
+        self.assertEqual(batches[1].shape, (4, 3))
+
+        self.assertSequenceEqual(list(batches[0][0]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[0][1]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[0][2]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[0][3]), [1, 0, 0])
+
+        self.assertSequenceEqual(list(batches[1][0]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[1][1]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[1][2]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[1][3]), [0, 1, 0])
+
+    def test_data_batches_encoder_class_with_finalizer(self):
+        data_encoder = self.data_encoder
+
+        class TruncateAndPadDataEncoder:
+            def transform(self, record):
+                """Encode and truncate vector"""
+                encoded = data_encoder(record)
+                return encoded[:encoded.index(1)+1]
+
+            def finalize_batch(self, records):
+                """Pad encoded vector"""
+                return [ rec + (0,) * (3 - len(rec)) for rec in records ]
+
+        data_set = GeneratorDataSet(self.inventory,
+                TruncateAndPadDataEncoder(),
+                self.target_encoder)
+        generator = data_set.data_batches(batch_size=4, epochs=1)
+
+        batches = [ batch for batch in generator ]
+        self.assertEqual(len(batches), 2)
+        self.assertEqual(batches[0].shape, (4, 3))
+        self.assertEqual(batches[1].shape, (4, 3))
+
+        self.assertSequenceEqual(list(batches[0][0]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[0][1]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[0][2]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[0][3]), [1, 0, 0])
+
+        self.assertSequenceEqual(list(batches[1][0]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[1][1]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[1][2]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[1][3]), [0, 1, 0])
+
+
+    def test_data_batches_not_truncated(self):
+        generator = self.data_set.data_batches(batch_size=4, epochs=1, truncate=False)
+
+        batches = [ batch for batch in generator ]
+        self.assertEqual(len(batches), 3)
+        self.assertEqual(batches[0].shape, (4, 3))
+        self.assertEqual(batches[1].shape, (4, 3))
+        self.assertEqual(batches[2].shape, (2, 3))
+
+        self.assertSequenceEqual(list(batches[0][0]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[0][1]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[0][2]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[0][3]), [1, 0, 0])
+
+        self.assertSequenceEqual(list(batches[1][0]), [0, 1, 0])
+        self.assertSequenceEqual(list(batches[1][1]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[1][2]), [1, 0, 0])
+        self.assertSequenceEqual(list(batches[1][3]), [0, 1, 0])
+
+        self.assertSequenceEqual(list(batches[2][0]), [0, 0, 1])
+        self.assertSequenceEqual(list(batches[2][1]), [1, 0, 0])
 
     def test_target_batches(self):
         generator = self.data_set.target_batches(batch_size=4, epochs=1)
@@ -242,3 +358,12 @@ class TestGeneratorDataSet(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.data_set.target_batches(batch_size=100)
+
+
+
+class TestBatchDataEncoder:
+    def __init__(self, id):
+        self.id = id
+
+    def transform_batch(self, records):
+        pass

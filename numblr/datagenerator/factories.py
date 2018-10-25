@@ -32,17 +32,14 @@ def enrich_inventory(inventory, resource_encoder, id='id', include_meta={'size':
 
 
 def generator_for_files(inventory_path, data_path, data_encoder, target_encoder,
-        id_mapper=None,
-        id='id',
-        target='target',
-        binary=False):
+        id_mapper=None, id='id', target='target', binary=False):
     file_data_encoder = FileDataEncoder(data_encoder, data_path,
             id=id, id_mapper=id_mapper, binary=binary)
     record_target_encoder = RecordTargetEncoder(target_encoder, target)
     inventory = enrich_inventory(pd.read_csv(inventory_path), file_data_encoder, id)
 
     data_set = GeneratorDataSet(inventory, file_data_encoder, record_target_encoder)
-    data_set.init()
+    data_set.fit_encoders()
 
     return data_set
 
@@ -55,6 +52,6 @@ def generator_for_urls(inventory_path, base_url,
     inventory = enrich_inventory(pd.read_csv(inventory_path), url_data_encoder, id)
 
     data_set = GeneratorDataSet(inventory, file_data_encoder, record_target_encoder)
-    data_set.init()
+    data_set.fit_encoders()
 
     return data_set

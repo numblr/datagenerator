@@ -15,21 +15,34 @@ except ImportError as e:
     logger.warning("Could not load dependencies for HTTP support", exc_info=True)
 
 
-class ResourceDataEncoder:
+class BatchDataEncoder():
+    def fit(self, inventory):
+        pass
+
+    def transform_batch(self, records):
+        raise NotImplementedError()
+
+
+class DataEncoder():
     def __call__(self, record):
-        return self.encode(record)
+        return self.transform(record)
 
-    def normalize(self, inventory):
+    def fit(self, inventory):
         pass
 
+    def transform(self, record):
+        raise NotImplementedError()
+
+    def finalize_batch(self, records):
+        return records
+
+
+class ResourceDataEncoder(DataEncoder):
     def get_path(self, record):
-        pass
+        raise NotImplementedError()
 
     def get_size(self, record):
-        pass
-
-    def encode(self, record):
-        pass
+        raise NotImplementedError()
 
 
 class FileDataEncoder(ResourceDataEncoder):
@@ -56,7 +69,7 @@ class FileDataEncoder(ResourceDataEncoder):
         self._id = id
         self._binary = binary
 
-    def normalize(self, inventory):
+    def fit(self, inventory):
         pass
 
     def get_path(self, record):
@@ -72,16 +85,21 @@ class FileDataEncoder(ResourceDataEncoder):
     def get_size(self, record):
         return os.path.getsize(self.get_path(record))
 
-    def encode(self, record):
+    def transform(self, record):
         mode = 'rb' if self._binary else 'r'
 
         with open(self.get_path(record), mode) as handle:
-            return self._encode_data(handle)
+            return self._transform_data(handle)
 
-    def _encode_data(self, data):
+    def _transform_data(self, data):
         """Override to customize featurization"""
         return self._data_encoder(data)
 
+    def finalize_batch(self, records):
+        try:
+            return self._data_encoder.finalize_batch(records)
+        except:
+            return records
 
 class UrlDataEncoder(ResourceDataEncoder):
     def __init__(self,
@@ -98,7 +116,7 @@ class UrlDataEncoder(ResourceDataEncoder):
         self._id = id
         self._type = type
 
-    def normalize(self, inventory):
+    def fit(self, inventory):
         pass
 
     def get_path(self, record):
@@ -117,7 +135,7 @@ class UrlDataEncoder(ResourceDataEncoder):
 
         return int(request.headers.get('content-length'))
 
-    def encode(self, record):
+    def transform(self, record):
         request = http.get(self.get_path(record), headers=self._headers)
         request.raise_for_status()
 
@@ -128,11 +146,18 @@ class UrlDataEncoder(ResourceDataEncoder):
         elif self._type == 'binary':
             data = request.content
 
-        return self._encode_data(data)
+        return self._transform_data(data)
 
-    def _encode_data(self, data):
+    def _transform_data(self, data):
         """Override to customize featurization"""
         return self._data_encoder(data)
+
+    def finalize_batch(self, records):
+        try:
+            return self._data_encoder.finalize_batch(records)
+        except:
+            return records
+
 
 
 class IdentityEncoder:
