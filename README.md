@@ -4,7 +4,7 @@ A library to provide data generators that can be used to train Keras models.
 
 The main class of the library provides is the *GeneratorDataSet* that is based on an inventory of records and provides generators that create batches of data based on the records in the inventory.
 
-A typical inventory would consists of unique file names with an associated target label. During data generation for each file name entry the associated file is loaded and processed into a feature vector. In addition the target label associated with the entry is encoded into some scalar or vector representation. The batches of featurized data and encoded targets are fed to the model for training via a python generator that loops over the inventory in each epoch.
+A typical inventory would consists of unique file names with an associated target label. During data generation for each file name entry the associated file is loaded and processed into a feature vector (or array). In addition, the target label associated with the entry would be encoded into some scalar or vector representation. The batches of featurized data and encoded targets are fed to the model for training via a python generator that iterates over the inventory in each epoch.
 
 ## General concept
 
